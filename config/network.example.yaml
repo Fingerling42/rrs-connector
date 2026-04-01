@@ -1,0 +1,19 @@
+network: "polkadot"
+
+wss:
+  polkadot:
+    - "wss://polkadot.rpc.robonomics.network/"
+  kusama:
+    - "wss://kusama.rpc.robonomics.network/"
+
+ipfs_gateways:
+  - "https://ipfs.io/"
+
+timeouts:
+  datalog_request_seconds: 15
+  ipfs_download_seconds: 60
+
+retries:
+  datalog_request_max_attempts: 3
+  ipfs_download_max_attempts: 3
+  retry_backoff_seconds: 2

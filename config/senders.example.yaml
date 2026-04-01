@@ -1,0 +1,11 @@
+senders:
+  - client_id: ""
+    robonomics_address: ""
+    description: ""
+    enabled: true
+  
+  - client_id: ""
+    robonomics_address: ""
+    description: ""
+    enabled: true
+  
