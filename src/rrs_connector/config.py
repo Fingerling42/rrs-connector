@@ -1,0 +1,101 @@
+from pathlib import Path
+from typing import Literal
+
+import yaml
+from pydantic import (
+    AnyUrl,
+    BaseModel,
+    PositiveInt,
+    SecretStr,
+    field_validator,
+)
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from substrateinterface.utils.ss58 import is_valid_ss58_address
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_ENV_FILE = PROJECT_ROOT / ".env"
+
+
+class ConnectorEnvSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=DEFAULT_ENV_FILE, env_file_encoding="utf-8", env_prefix="RRS_"
+    )
+
+    integrator_seed: SecretStr
+    data_dir: Path
+    state_db: Path
+    poll_interval_seconds: PositiveInt
+    network_config_file: Path
+    senders_config_file: Path
+
+
+class WssConfig(BaseModel):
+    polkadot: list[AnyUrl]
+    kusama: list[AnyUrl]
+
+
+class TimeoutsConfig(BaseModel):
+    datalog_request_seconds: PositiveInt
+    ipfs_download_seconds: PositiveInt
+
+
+class RetriesConfig(BaseModel):
+    datalog_request_max_attempts: PositiveInt
+    ipfs_download_max_attempts: PositiveInt
+    retry_backoff_seconds: PositiveInt
+
+
+class ConnectorNetworkModel(BaseModel):
+    network: Literal["polkadot", "kusama"]
+    wss: WssConfig
+    ipfs_gateways: list[AnyUrl]
+    timeouts: TimeoutsConfig
+    retries: RetriesConfig
+
+
+class SenderModel(BaseModel):
+    client_id: str
+    robonomics_address: str
+    description: str
+    enabled: bool
+
+    @field_validator("robonomics_address", mode="after")
+    @classmethod
+    def is_robonomics_address(cls, address: str) -> str:
+        if not is_valid_ss58_address(address):
+            raise ValueError(f"{address} is not a valid SS58 address")
+        return address
+
+
+class ConnectorSendersModel(BaseModel):
+    senders: list[SenderModel]
+
+
+def normalize_path(path: Path) -> Path:
+    if path.is_absolute():
+        return path
+    return (PROJECT_ROOT / path).resolve()
+
+
+def load_settings() -> tuple[
+    ConnectorEnvSettings, ConnectorNetworkModel, ConnectorSendersModel
+]:
+    env_settings = ConnectorEnvSettings()
+    env_settings = env_settings.model_copy(
+        update={
+            "data_dir": normalize_path(env_settings.data_dir),
+            "state_db": normalize_path(env_settings.state_db),
+            "network_config_file": normalize_path(env_settings.network_config_file),
+            "senders_config_file": normalize_path(env_settings.senders_config_file),
+        }
+    )
+
+    with open(env_settings.network_config_file, encoding="utf-8") as file:
+        network_data = yaml.safe_load(file)
+    network_settings = ConnectorNetworkModel.model_validate(network_data)
+
+    with open(env_settings.senders_config_file, encoding="utf-8") as file:
+        senders_data = yaml.safe_load(file)
+    senders_model = ConnectorSendersModel.model_validate(senders_data)
+
+    return env_settings, network_settings, senders_model
