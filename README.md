@@ -1,2 +1,2 @@
-# rrs-admin
-Admin panel to handle messages from Robonomics Report Service
+# rrs-connector
+A console utility that collects reports from the Robonomics Report Service integration for Home Assistant.

@@ -1,4 +1,6 @@
 .env
+config/network.yaml
+config/senders.yaml
 data/
 .venv/
 __pycache__/
@@ -9,3 +11,4 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+.vscode/
