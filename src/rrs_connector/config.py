@@ -76,6 +76,17 @@ def normalize_path(path: Path) -> Path:
         return path
     return (PROJECT_ROOT / path).resolve()
 
+def load_yaml_file(path: Path) -> dict:
+    with open(path, encoding="utf-8") as file:
+        data = yaml.safe_load(file)
+
+    if data is None:
+        raise ValueError(f"YAML file is empty: {path}")
+
+    if not isinstance(data, dict):
+        raise ValueError(f"YAML file must contain a mapping at top level: {path}")
+
+    return data
 
 def load_settings() -> tuple[
     ConnectorEnvSettings, ConnectorNetworkModel, ConnectorSendersModel
@@ -90,12 +101,10 @@ def load_settings() -> tuple[
         }
     )
 
-    with open(env_settings.network_config_file, encoding="utf-8") as file:
-        network_data = yaml.safe_load(file)
+    network_data = load_yaml_file(env_settings.network_config_file)
     network_settings = ConnectorNetworkModel.model_validate(network_data)
 
-    with open(env_settings.senders_config_file, encoding="utf-8") as file:
-        senders_data = yaml.safe_load(file)
+    senders_data = load_yaml_file(env_settings.senders_config_file)
     senders_model = ConnectorSendersModel.model_validate(senders_data)
 
     return env_settings, network_settings, senders_model
