@@ -45,7 +45,7 @@ class RetriesConfig(BaseModel):
     retry_backoff_seconds: PositiveInt
 
 
-class ConnectorNetworkModel(BaseModel):
+class ConnectorNetworkConfig(BaseModel):
     network: Literal["polkadot", "kusama"]
     wss: WssConfig
     ipfs_gateways: list[AnyUrl]
@@ -53,7 +53,7 @@ class ConnectorNetworkModel(BaseModel):
     retries: RetriesConfig
 
 
-class SenderModel(BaseModel):
+class SenderConfig(BaseModel):
     client_id: str
     robonomics_address: str
     description: str
@@ -67,8 +67,8 @@ class SenderModel(BaseModel):
         return address
 
 
-class ConnectorSendersModel(BaseModel):
-    senders: list[SenderModel]
+class ConnectorSendersConfig(BaseModel):
+    senders: list[SenderConfig]
 
 
 def normalize_path(path: Path) -> Path:
@@ -89,7 +89,7 @@ def load_yaml_file(path: Path) -> dict:
     return data
 
 def load_settings() -> tuple[
-    ConnectorEnvSettings, ConnectorNetworkModel, ConnectorSendersModel
+    ConnectorEnvSettings, ConnectorNetworkConfig, ConnectorSendersConfig
 ]:
     env_settings = ConnectorEnvSettings()
     env_settings = env_settings.model_copy(
@@ -102,9 +102,9 @@ def load_settings() -> tuple[
     )
 
     network_data = load_yaml_file(env_settings.network_config_file)
-    network_settings = ConnectorNetworkModel.model_validate(network_data)
+    network_settings = ConnectorNetworkConfig.model_validate(network_data)
 
     senders_data = load_yaml_file(env_settings.senders_config_file)
-    senders_model = ConnectorSendersModel.model_validate(senders_data)
+    senders_model = ConnectorSendersConfig.model_validate(senders_data)
 
     return env_settings, network_settings, senders_model

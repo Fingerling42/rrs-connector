@@ -1,7 +1,12 @@
-.env
-config/network.yaml
-config/senders.yaml
+*.env
+
+config/*
+!config/
+!config/network.example.yaml
+!config/senders.example.yaml
+
 data/
+
 .venv/
 __pycache__/
 .pytest_cache/
