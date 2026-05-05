@@ -21,17 +21,19 @@ def main() -> int:
 
     try:
         LOGGER.info("Loading configuration")
-        env_settings, network_settings, senders_model = load_settings()
+        env_settings, network_config, sender_registry = load_settings()
     except Exception:
         LOGGER.exception("Application startup failed")
         return 1
-    
-    enabled_senders = sum(sender.enabled for sender in senders_model.senders)
+
+    enabled_senders = sum(
+        sender_config.enabled for sender_config in sender_registry.senders
+    )
     LOGGER.info(
         "Configuration: network=%s, senders=%d, enabled_senders=%d, "
         "poll_interval_seconds=%d",
-        network_settings.network,
-        len(senders_model.senders),
+        network_config.network,
+        len(sender_registry.senders),
         enabled_senders,
         env_settings.poll_interval_seconds,
     )
@@ -45,7 +47,7 @@ def main() -> int:
     try:
         if command == "run-once":
             result: RunOnceResult = run_once(
-                env_settings, network_settings, senders_model
+                env_settings, network_config, sender_registry
             )
             return result.exit_code
     except Exception:

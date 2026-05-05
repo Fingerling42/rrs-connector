@@ -2,9 +2,9 @@ import logging
 from dataclasses import dataclass
 
 from rrs_connector.config import (
-    ConnectorEnvSettings,
-    ConnectorNetworkConfig,
-    ConnectorSendersConfig,
+    EnvSettings,
+    NetworkConfig,
+    SenderRegistryConfig,
 )
 from rrs_connector.db import (
     create_db_engine,
@@ -29,9 +29,9 @@ class RunOnceResult:
 
 
 def run_once(
-    env_settings: ConnectorEnvSettings,
-    network_settings: ConnectorNetworkConfig,
-    senders_config: ConnectorSendersConfig,
+    env_settings: EnvSettings,
+    network_config: NetworkConfig,
+    sender_registry: SenderRegistryConfig,
 ) -> RunOnceResult:
     LOGGER.info("Starting run-once pass")
 
@@ -40,41 +40,42 @@ def run_once(
     session_factory = create_session_factory(engine)
 
     store = StateStore(session_factory)
-    store.sync_senders(senders_config.senders)
+    store.sync_senders(sender_registry.senders)
 
-    total_senders = len(senders_config.senders)
-    enabled_senders = sum(sender.enabled for sender in senders_config.senders)
+    total_senders = len(sender_registry.senders)
+    enabled_senders = sum(
+        sender_config.enabled for sender_config in sender_registry.senders
+    )
     skipped_senders = total_senders - enabled_senders
 
     processed_senders = 0
     failed_senders = 0
 
-    for sender in senders_config.senders:
-
-        if not sender.enabled:
+    for sender_config in sender_registry.senders:
+        if not sender_config.enabled:
             continue
 
         try:
             LOGGER.info(
                 "Sender ID: %s, address: %s, description: %s",
-                sender.client_id,
-                sender.robonomics_address,
-                sender.description,
+                sender_config.client_id,
+                sender_config.robonomics_address,
+                sender_config.description,
             )
             processed_senders += 1
         except Exception:
             LOGGER.exception(
-                "Error during processing sender ID %s", sender.client_id
+                "Error during processing sender ID %s", sender_config.client_id
             )
             failed_senders += 1
 
     LOGGER.info(
         "Run once is completed, successfully processed %d out of %d senders, "
-        "%d senders are failed, skipped=%d", 
+        "%d senders are failed, skipped=%d",
         processed_senders,
         enabled_senders,
         failed_senders,
-        skipped_senders
+        skipped_senders,
     )
     return RunOnceResult(
         processed_senders,

@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENV_FILE = PROJECT_ROOT / ".env"
 
 
-class ConnectorEnvSettings(BaseSettings):
+class EnvSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=DEFAULT_ENV_FILE, env_file_encoding="utf-8", env_prefix="RRS_"
     )
@@ -45,7 +45,7 @@ class RetriesConfig(BaseModel):
     retry_backoff_seconds: PositiveInt
 
 
-class ConnectorNetworkConfig(BaseModel):
+class NetworkConfig(BaseModel):
     network: Literal["polkadot", "kusama"]
     wss: WssConfig
     ipfs_gateways: list[AnyUrl]
@@ -67,7 +67,7 @@ class SenderConfig(BaseModel):
         return address
 
 
-class ConnectorSendersConfig(BaseModel):
+class SenderRegistryConfig(BaseModel):
     senders: list[SenderConfig]
 
 
@@ -88,10 +88,8 @@ def load_yaml_file(path: Path) -> dict:
 
     return data
 
-def load_settings() -> tuple[
-    ConnectorEnvSettings, ConnectorNetworkConfig, ConnectorSendersConfig
-]:
-    env_settings = ConnectorEnvSettings()
+def load_settings() -> tuple[EnvSettings, NetworkConfig, SenderRegistryConfig]:
+    env_settings = EnvSettings()
     env_settings = env_settings.model_copy(
         update={
             "data_dir": normalize_path(env_settings.data_dir),
@@ -102,9 +100,9 @@ def load_settings() -> tuple[
     )
 
     network_data = load_yaml_file(env_settings.network_config_file)
-    network_settings = ConnectorNetworkConfig.model_validate(network_data)
+    network_config = NetworkConfig.model_validate(network_data)
 
     senders_data = load_yaml_file(env_settings.senders_config_file)
-    senders_model = ConnectorSendersConfig.model_validate(senders_data)
+    sender_registry = SenderRegistryConfig.model_validate(senders_data)
 
-    return env_settings, network_settings, senders_model
+    return env_settings, network_config, sender_registry
