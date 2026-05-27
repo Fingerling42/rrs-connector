@@ -9,10 +9,22 @@ from rrs_connector.db_models import SenderRecord
 
 
 class StateStore:
+    """Persistence API for connector runtime state."""
+
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        """Store a factory used to open short-lived database sessions."""
+
         self._session_factory = session_factory
 
     def sync_senders(self, sender_configs: Sequence[SenderConfig]) -> None:
+        """Synchronize sender config into local state.
+
+        The sender registry config is the source of truth for active sender
+        configuration. Existing records are updated, new records are created,
+        and records missing from the current config are disabled instead of
+        deleted to preserve cursors and future report history.
+        """
+
         with self._session_factory() as session:
             for sender_config in sender_configs:
                 sender_record = session.scalar(
@@ -51,6 +63,8 @@ class StateStore:
             session.commit()
 
     def get_enabled_sender_records(self) -> list[SenderRecord]:
+        """Return sender records that should be polled."""
+
         with self._session_factory() as session:
             stmt = (
                 select(SenderRecord)
@@ -60,6 +74,8 @@ class StateStore:
             return list(session.scalars(stmt).all())
 
     def get_sender_record_by_address(self, address: str) -> SenderRecord | None:
+        """Return one sender record by Robonomics address, if it exists."""
+
         with self._session_factory() as session:
             stmt = select(SenderRecord).where(
                 SenderRecord.robonomics_address == address
@@ -67,6 +83,8 @@ class StateStore:
             return session.scalar(stmt)
 
     def mark_sender_scanned(self, sender_id: int, datalog_index: int) -> None:
+        """Move a sender datalog cursor to the last scanned index."""
+
         with self._session_factory() as session:
             sender_record = session.get(SenderRecord, sender_id)
 

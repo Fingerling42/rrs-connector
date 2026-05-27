@@ -1,3 +1,5 @@
+"""SQLAlchemy ORM records for the connector state database."""
+
 from datetime import UTC, datetime
 from enum import StrEnum
 
@@ -16,10 +18,14 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class DbBase(DeclarativeBase):
+    """Base class for all SQLAlchemy ORM records."""
+
     pass
 
 
 class SenderRecord(DbBase):
+    """Configured Home Assistant report sender persisted in local state."""
+
     __tablename__ = "senders"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -55,6 +61,8 @@ class SenderRecord(DbBase):
 
 
 class DatalogStatus(StrEnum):
+    """Processing state for one datalog event."""
+
     IGNORED = "ignored"
     NEW = "new"
     FETCHING = "fetching"
@@ -65,6 +73,8 @@ class DatalogStatus(StrEnum):
 
 
 class DatalogEntryRecord(DbBase):
+    """One datalog event observed for a sender."""
+
     __tablename__ = "datalog_entries"
     __table_args__ = (
         UniqueConstraint("sender_id", "datalog_index"),
