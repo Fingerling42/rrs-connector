@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
@@ -8,12 +10,18 @@ from rrs_connector.db import (
     create_session_factory,
     initialize_database,
 )
-from rrs_connector.db_models import SenderRecord
+from rrs_connector.db_models import DatalogStatus, SenderRecord
 from rrs_connector.state_store import StateStore
 
 ADDRESS_1 = "4DVyLjBGM99Np9XBhADqkbTw9JGn2LgnFpHAQ8TBSjGPZ5fN"
 ADDRESS_2 = "4Ff5w7XuzrfnuMT25GYijtu3w2DoRbjNSBgym4TRgPSh279f"
 ADDRESS_3 = "4CrE2aFEXYeBrNJePkTPxF363NqYYvXC1PhWsSZWtbWy3PzJ"
+
+CID_1 = "QmRHvtsEViqHFN6Mt66p9o5MvvzB2H5uvfMTi8maAnLmfi"
+CID_2 = "QmUbQTQknKLuDB8SmJF9pUhkTPdJbXp5ghDwp7oXwwDb9V"
+
+DATALOG_TS_1 = datetime.fromtimestamp(1779171696000 / 1000.0, UTC)
+DATALOG_TS_2 = datetime.fromtimestamp(1779156696000 / 1000.0, UTC)
 
 
 @pytest.fixture
@@ -189,7 +197,10 @@ def test_mark_sender_scanned_raises_for_unknown_sender(
         store.mark_sender_scanned(999, 42)
 
 
-def test_sync_senders_disables_missing_senders(store, sender_configs):
+def test_sync_senders_disables_missing_senders(
+    store: StateStore,
+    sender_configs: list[SenderConfig],
+) -> None:
     store.sync_senders(sender_configs)
 
     store.sync_senders(sender_configs[1:])
@@ -198,3 +209,253 @@ def test_sync_senders_disables_missing_senders(store, sender_configs):
 
     assert missing_sender is not None
     assert missing_sender.enabled is False
+
+
+def test_add_datalog_entry_creates_entry(
+    store: StateStore,
+    sender_configs: list[SenderConfig],
+) -> None:
+    store.sync_senders(sender_configs)
+
+    sender = store.get_sender_record_by_address(ADDRESS_1)
+    assert sender is not None
+
+    is_added = store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_1,
+    )
+
+    assert is_added is True
+
+    entry = store.get_datalog_entry_record(sender.id, 1)
+
+    assert entry is not None
+    assert entry.sender_id == sender.id
+    assert entry.datalog_index == 1
+    assert entry.raw_payload == f"Test Payload: {CID_1}"
+    assert entry.cid == CID_1
+    assert entry.status == DatalogStatus.NEW
+    assert entry.datalog_timestamp == DATALOG_TS_1.replace(tzinfo=None)
+    assert entry.error_message is None
+    assert entry.first_seen_at is not None
+    assert entry.updated_at is not None
+    assert entry.processed_at is None
+
+
+def test_add_datalog_entry_returns_false_for_duplicate_index(
+    store: StateStore,
+    sender_configs: list[SenderConfig],
+) -> None:
+    store.sync_senders(sender_configs)
+    sender = store.get_sender_record_by_address(ADDRESS_1)
+    assert sender is not None
+
+    store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_1,
+    )
+
+    is_added = store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_1,
+    )
+
+    assert is_added is False
+
+
+def test_add_datalog_entry_allows_same_cid_with_different_index(
+    store: StateStore,
+    sender_configs: list[SenderConfig],
+) -> None:
+    store.sync_senders(sender_configs)
+    sender = store.get_sender_record_by_address(ADDRESS_1)
+    assert sender is not None
+
+    store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_1,
+    )
+
+    is_added = store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=2,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_2,
+    )
+
+    assert is_added is True
+
+
+def test_add_datalog_entry_raises_for_unknown_sender(
+    store: StateStore,
+) -> None:
+    with pytest.raises(ValueError, match="Sender not found"):
+        store.add_datalog_entry(
+            sender_id=1,
+            datalog_index=1,
+            raw_payload=f"Test Payload: {CID_1}",
+            cid=CID_1,
+            status=DatalogStatus.NEW,
+            datalog_timestamp=DATALOG_TS_1,
+        )
+
+
+def test_add_datalog_entry_creates_ignored_entry(
+    store: StateStore,
+    sender_configs: list[SenderConfig],
+) -> None:
+    store.sync_senders(sender_configs)
+    sender = store.get_sender_record_by_address(ADDRESS_1)
+    assert sender is not None
+
+    is_added = store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=1,
+        raw_payload="not a report cid",
+        cid=None,
+        status=DatalogStatus.IGNORED,
+        datalog_timestamp=DATALOG_TS_1,
+        error_message="Payload is not a report CID",
+    )
+
+    assert is_added is True
+
+    entry = store.get_datalog_entry_record(sender.id, 1)
+    assert entry is not None
+    assert entry.raw_payload == "not a report cid"
+    assert entry.cid is None
+    assert entry.status == DatalogStatus.IGNORED
+    assert entry.error_message == "Payload is not a report CID"
+
+
+def test_get_datalog_entry_record_by_id(
+    store: StateStore,
+    sender_configs: list[SenderConfig],
+) -> None:
+    store.sync_senders(sender_configs)
+    sender = store.get_sender_record_by_address(ADDRESS_1)
+    assert sender is not None
+
+    store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_1,
+    )
+
+    entry_by_sender_id_datalog_index = store.get_datalog_entry_record(sender.id, 1)
+    assert entry_by_sender_id_datalog_index is not None
+
+    entry_by_entry_id = store.get_datalog_entry_record_by_id(
+        entry_by_sender_id_datalog_index.id
+    )
+    assert entry_by_entry_id is not None
+
+    assert entry_by_sender_id_datalog_index.id == entry_by_entry_id.id
+
+
+def test_list_datalog_entry_records_by_status(
+    store: StateStore,
+    sender_configs: list[SenderConfig],
+) -> None:
+    store.sync_senders(sender_configs)
+
+    sender_1 = store.get_sender_record_by_address(ADDRESS_1)
+    assert sender_1 is not None
+    sender_2 = store.get_sender_record_by_address(ADDRESS_2)
+    assert sender_2 is not None
+
+    store.add_datalog_entry(
+        sender_id=sender_1.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_1,
+    )
+
+    store.add_datalog_entry(
+        sender_id=sender_2.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_2}",
+        cid=CID_2,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_2,
+    )
+
+    datalog_entry_records = store.list_datalog_entry_records_by_status(
+        DatalogStatus.NEW
+    )
+
+    assert [record.cid for record in datalog_entry_records] == [CID_1, CID_2]
+    assert [record.status for record in datalog_entry_records] == [
+        DatalogStatus.NEW,
+        DatalogStatus.NEW,
+    ]
+
+
+def test_mark_datalog_entry_status(
+    store: StateStore,
+    sender_configs: list[SenderConfig],
+) -> None:
+    store.sync_senders(sender_configs)
+    sender = store.get_sender_record_by_address(ADDRESS_1)
+    assert sender is not None
+
+    store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_1,
+    )
+
+    datalog_entry = store.get_datalog_entry_record(sender.id, 1)
+    assert datalog_entry is not None
+
+    store.mark_datalog_entry_status(datalog_entry.id, DatalogStatus.FETCHING)
+    datalog_entry = store.get_datalog_entry_record(sender.id, 1)
+    assert datalog_entry is not None
+    assert datalog_entry.status == DatalogStatus.FETCHING
+
+    store.mark_datalog_entry_status(
+        datalog_entry.id, DatalogStatus.FAILED, error_message="Test error"
+    )
+    datalog_entry = store.get_datalog_entry_record(sender.id, 1)
+    assert datalog_entry is not None
+    assert datalog_entry.status == DatalogStatus.FAILED
+    assert datalog_entry.error_message == "Test error"
+
+    store.mark_datalog_entry_status(datalog_entry.id, DatalogStatus.PROCESSED)
+    datalog_entry = store.get_datalog_entry_record(sender.id, 1)
+    assert datalog_entry is not None
+    assert datalog_entry.status == DatalogStatus.PROCESSED
+    assert datalog_entry.processed_at is not None
+    assert datalog_entry.error_message is None
+
+def test_mark_datalog_entry_status_raises_for_unknown_entry(
+    store: StateStore,
+) -> None:
+    with pytest.raises(ValueError, match="Datalog entry not found"):
+        store.mark_datalog_entry_status(1, DatalogStatus.FETCHING)
