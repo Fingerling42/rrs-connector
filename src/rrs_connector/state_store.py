@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rrs_connector.config import SenderConfig
-from rrs_connector.db_models import SenderRecord
+from rrs_connector.db_models import DatalogEntryRecord, DatalogStatus, SenderRecord
 
 
 class StateStore:
@@ -95,3 +95,109 @@ class StateStore:
             sender_record.last_scanned_at = datetime.now(UTC)
 
             session.commit()
+
+    def add_datalog_entry(
+        self,
+        sender_id: int,
+        datalog_index: int,
+        raw_payload: str | None,
+        cid: str | None,
+        status: DatalogStatus,
+        datalog_timestamp: datetime | None = None,
+        error_message: str | None = None,
+    ) -> bool:
+        """
+        Store one observed datalog entry.
+
+        Returns True when a new row is inserted. Returns False when the
+        sender/index pair already exists.
+        """
+        with self._session_factory() as session:
+            sender_record = session.get(SenderRecord, sender_id)
+            if sender_record is None:
+                raise ValueError(f"Sender not found: {sender_id}")
+
+            existing_entry = session.scalar(
+                select(DatalogEntryRecord).where(
+                    DatalogEntryRecord.sender_id == sender_id,
+                    DatalogEntryRecord.datalog_index == datalog_index,
+                )
+            )
+
+            if existing_entry is not None:
+                return False
+
+            datalog_entry_record = DatalogEntryRecord(
+                sender_id=sender_id,
+                datalog_index=datalog_index,
+                datalog_timestamp=datalog_timestamp,
+                raw_payload=raw_payload,
+                cid=cid,
+                status=status,
+                error_message=error_message,
+            )
+            session.add(datalog_entry_record)
+            session.commit()
+
+            return True
+
+    def get_datalog_entry_record(
+        self,
+        sender_id: int,
+        datalog_index: int,
+    ) -> DatalogEntryRecord | None:
+        """Return one datalog entry by sender/index pair, if it exists."""
+
+        with self._session_factory() as session:
+            return session.scalar(
+                select(DatalogEntryRecord).where(
+                    DatalogEntryRecord.sender_id == sender_id,
+                    DatalogEntryRecord.datalog_index == datalog_index,
+                )
+            )
+
+    def list_datalog_entry_records_by_status(
+        self,
+        status: DatalogStatus,
+    ) -> list[DatalogEntryRecord]:
+        """Return datalog entries currently in the given processing status."""
+
+        with self._session_factory() as session:
+            stmt = (
+                select(DatalogEntryRecord)
+                .where(DatalogEntryRecord.status == status)
+                .order_by(
+                    DatalogEntryRecord.sender_id, DatalogEntryRecord.datalog_index
+                )
+            )
+            return list(session.scalars(stmt).all())
+
+    def mark_datalog_entry_status(
+        self,
+        entry_id: int,
+        status: DatalogStatus,
+        error_message: str | None = None,
+    ) -> None:
+        """Update processing status and optional error for one datalog entry."""
+
+        with self._session_factory() as session:
+            entry_record = session.get(DatalogEntryRecord, entry_id)
+
+            if entry_record is None:
+                raise ValueError(f"Datalog entry not found: {entry_id}")
+
+            entry_record.status = status
+            entry_record.error_message = error_message
+
+            if status == DatalogStatus.PROCESSED:
+                entry_record.processed_at = datetime.now(UTC)
+
+            session.commit()
+
+    def get_datalog_entry_record_by_id(
+        self, entry_id: int
+    ) -> DatalogEntryRecord | None:
+        """Return one datalog entry by primary key, if it exists."""
+
+        with self._session_factory() as session:
+            return session.get(DatalogEntryRecord, entry_id)
