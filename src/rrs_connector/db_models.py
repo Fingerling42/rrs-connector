@@ -117,3 +117,27 @@ class DatalogEntryRecord(DbBase):
     )
 
     sender: Mapped["SenderRecord"] = relationship(back_populates="datalog_entries")
+    report_storage: Mapped["ReportStorageRecord | None"] = relationship(
+        back_populates="datalog_entry",
+    )
+
+
+class ReportStorageRecord(DbBase):
+    """Local filesystem artifacts stored for one datalog entry."""
+    __tablename__ = "report_storage"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    datalog_entry_id: Mapped[int] = mapped_column(
+        ForeignKey("datalog_entries.id"), nullable=False, unique=True
+    )
+    archive_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_dir: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decrypted_dir: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meta_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    datalog_entry: Mapped["DatalogEntryRecord"] = relationship(
+        back_populates="report_storage"
+    )
