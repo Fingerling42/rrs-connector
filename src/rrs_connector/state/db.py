@@ -5,7 +5,7 @@ from pathlib import Path
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from rrs_connector.db_models import DbBase
+from rrs_connector.state.models import DbBase
 
 
 def make_sqlite_url(db_path: Path) -> str:

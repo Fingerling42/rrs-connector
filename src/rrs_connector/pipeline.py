@@ -6,12 +6,12 @@ from rrs_connector.config import (
     NetworkConfig,
     SenderRegistryConfig,
 )
-from rrs_connector.db import (
+from rrs_connector.state.db import (
     create_db_engine,
     create_session_factory,
     initialize_database,
 )
-from rrs_connector.state_store import StateStore
+from rrs_connector.state.store import StateStore
 
 LOGGER = logging.getLogger(__name__)
 

@@ -6,17 +6,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rrs_connector.config import SenderConfig, SenderRegistryConfig
-from rrs_connector.db import (
+from rrs_connector.state.db import (
     create_db_engine,
     create_session_factory,
     initialize_database,
 )
-from rrs_connector.db_models import (
+from rrs_connector.state.models import (
     DatalogEntryRecord,
     DatalogStatus,
     SenderRecord,
 )
-from rrs_connector.state_store import StateStore
+from rrs_connector.state.store import StateStore
 
 ADDRESS_1 = "4DVyLjBGM99Np9XBhADqkbTw9JGn2LgnFpHAQ8TBSjGPZ5fN"
 ADDRESS_2 = "4Ff5w7XuzrfnuMT25GYijtu3w2DoRbjNSBgym4TRgPSh279f"

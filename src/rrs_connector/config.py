@@ -76,6 +76,7 @@ def normalize_path(path: Path) -> Path:
         return path
     return (PROJECT_ROOT / path).resolve()
 
+
 def load_yaml_file(path: Path) -> dict:
     with open(path, encoding="utf-8") as file:
         data = yaml.safe_load(file)
@@ -87,6 +88,7 @@ def load_yaml_file(path: Path) -> dict:
         raise ValueError(f"YAML file must contain a mapping at top level: {path}")
 
     return data
+
 
 def load_settings() -> tuple[EnvSettings, NetworkConfig, SenderRegistryConfig]:
     env_settings = EnvSettings()

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rrs_connector.config import SenderConfig
-from rrs_connector.db_models import (
+from rrs_connector.state.models import (
     DatalogEntryRecord,
     DatalogStatus,
     ReportArtifactRecord,
