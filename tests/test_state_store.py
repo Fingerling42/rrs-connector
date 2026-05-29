@@ -454,8 +454,91 @@ def test_mark_datalog_entry_status(
     assert datalog_entry.processed_at is not None
     assert datalog_entry.error_message is None
 
+
 def test_mark_datalog_entry_status_raises_for_unknown_entry(
     store: StateStore,
 ) -> None:
     with pytest.raises(ValueError, match="Datalog entry not found"):
         store.mark_datalog_entry_status(1, DatalogStatus.FETCHING)
+
+
+def test_upsert_report_storage(
+    store: StateStore, sender_configs: list[SenderConfig], tmp_path
+) -> None:
+    store.sync_senders(sender_configs)
+    sender = store.get_sender_record_by_address(ADDRESS_1)
+    assert sender is not None
+
+    store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_1,
+    )
+
+    datalog_entry = store.get_datalog_entry_record(sender.id, 1)
+    assert datalog_entry is not None
+
+    store.upsert_report_storage(datalog_entry.id)
+
+    storage_record = store.get_report_storage_record(datalog_entry.id)
+
+    assert storage_record is not None
+
+    store.upsert_report_storage(
+        datalog_entry.id, archive_path=tmp_path / "test_archive.zip"
+    )
+
+    storage_record_archive = store.get_report_storage_record(datalog_entry.id)
+
+    assert storage_record_archive is not None
+    assert storage_record.id == storage_record_archive.id
+
+    store.upsert_report_storage(
+        datalog_entry.id, archive_path=None, raw_dir=tmp_path / "raw_dir"
+    )
+
+    storage_record = store.get_report_storage_record(datalog_entry.id)
+
+    assert storage_record is not None
+    assert storage_record.archive_path == str(tmp_path / "test_archive.zip")
+    assert storage_record.raw_dir == str(tmp_path / "raw_dir")
+
+
+def test_get_report_storage_record_returns_none_without_storage(
+    store: StateStore,
+    sender_configs: list[SenderConfig],
+) -> None:
+    store.sync_senders(sender_configs)
+    sender = store.get_sender_record_by_address(ADDRESS_1)
+    assert sender is not None
+
+    store.add_datalog_entry(
+        sender_id=sender.id,
+        datalog_index=1,
+        raw_payload=f"Test Payload: {CID_1}",
+        cid=CID_1,
+        status=DatalogStatus.NEW,
+        datalog_timestamp=DATALOG_TS_1,
+    )
+
+    datalog_entry = store.get_datalog_entry_record(sender.id, 1)
+    assert datalog_entry is not None
+
+    assert store.get_report_storage_record(datalog_entry.id) is None
+
+
+def test_get_report_storage_record_raises_for_unknown_entry(
+    store: StateStore,
+) -> None:
+    with pytest.raises(ValueError, match="Datalog entry not found"):
+        store.get_report_storage_record(42)
+
+
+def test_upsert_report_storage_raises_for_unknown_entry(
+    store: StateStore, tmp_path
+) -> None:
+    with pytest.raises(ValueError, match="Datalog entry not found"):
+        store.upsert_report_storage(42, archive_path=tmp_path / "test_archive.zip")
