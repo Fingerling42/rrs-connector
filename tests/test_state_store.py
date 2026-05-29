@@ -439,56 +439,56 @@ def test_mark_datalog_entry_status_raises_for_unknown_entry(
         store.mark_datalog_entry_status(1, DatalogStatus.FETCHING)
 
 
-def test_upsert_report_storage(
+def test_upsert_report_artifact(
     synced_store: StateStore,
     tmp_path: Path,
 ) -> None:
     _, datalog_entry = add_datalog_entry_for_sender_address(synced_store)
 
-    synced_store.upsert_report_storage(datalog_entry.id)
+    synced_store.upsert_report_artifact(datalog_entry.id)
 
-    storage_record = synced_store.get_report_storage_record(datalog_entry.id)
-    assert storage_record is not None
+    artifact_record = synced_store.get_report_artifact_record(datalog_entry.id)
+    assert artifact_record is not None
 
-    synced_store.upsert_report_storage(
+    synced_store.upsert_report_artifact(
         datalog_entry.id,
         archive_path=tmp_path / "test_archive.zip",
     )
 
-    storage_record_archive = synced_store.get_report_storage_record(datalog_entry.id)
-    assert storage_record_archive is not None
-    assert storage_record.id == storage_record_archive.id
+    artifact_record_archive = synced_store.get_report_artifact_record(datalog_entry.id)
+    assert artifact_record_archive is not None
+    assert artifact_record.id == artifact_record_archive.id
 
-    synced_store.upsert_report_storage(
+    synced_store.upsert_report_artifact(
         datalog_entry.id,
         archive_path=None,
         raw_dir=tmp_path / "raw_dir",
     )
 
-    storage_record = synced_store.get_report_storage_record(datalog_entry.id)
-    assert storage_record is not None
-    assert storage_record.archive_path == str(tmp_path / "test_archive.zip")
-    assert storage_record.raw_dir == str(tmp_path / "raw_dir")
+    artifact_record = synced_store.get_report_artifact_record(datalog_entry.id)
+    assert artifact_record is not None
+    assert artifact_record.archive_path == str(tmp_path / "test_archive.zip")
+    assert artifact_record.raw_dir == str(tmp_path / "raw_dir")
 
 
-def test_get_report_storage_record_returns_none_without_storage(
+def test_get_report_artifact_record_returns_none_without_artifact(
     synced_store: StateStore,
 ) -> None:
     _, datalog_entry = add_datalog_entry_for_sender_address(synced_store)
 
-    assert synced_store.get_report_storage_record(datalog_entry.id) is None
+    assert synced_store.get_report_artifact_record(datalog_entry.id) is None
 
 
-def test_get_report_storage_record_raises_for_unknown_entry(
+def test_get_report_artifact_record_raises_for_unknown_entry(
     store: StateStore,
 ) -> None:
     with pytest.raises(ValueError, match="Datalog entry not found"):
-        store.get_report_storage_record(42)
+        store.get_report_artifact_record(42)
 
 
-def test_upsert_report_storage_raises_for_unknown_entry(
+def test_upsert_report_artifact_raises_for_unknown_entry(
     store: StateStore,
     tmp_path: Path,
 ) -> None:
     with pytest.raises(ValueError, match="Datalog entry not found"):
-        store.upsert_report_storage(42, archive_path=tmp_path / "test_archive.zip")
+        store.upsert_report_artifact(42, archive_path=tmp_path / "test_archive.zip")

@@ -117,14 +117,15 @@ class DatalogEntryRecord(DbBase):
     )
 
     sender: Mapped["SenderRecord"] = relationship(back_populates="datalog_entries")
-    report_storage: Mapped["ReportStorageRecord | None"] = relationship(
+    report_artifact: Mapped["ReportArtifactRecord | None"] = relationship(
         back_populates="datalog_entry",
     )
 
 
-class ReportStorageRecord(DbBase):
+class ReportArtifactRecord(DbBase):
     """Local filesystem artifacts stored for one datalog entry."""
-    __tablename__ = "report_storage"
+
+    __tablename__ = "report_artifacts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     datalog_entry_id: Mapped[int] = mapped_column(
@@ -139,5 +140,5 @@ class ReportStorageRecord(DbBase):
     )
 
     datalog_entry: Mapped["DatalogEntryRecord"] = relationship(
-        back_populates="report_storage"
+        back_populates="report_artifact"
     )

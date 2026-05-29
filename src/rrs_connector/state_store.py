@@ -9,7 +9,7 @@ from rrs_connector.config import SenderConfig
 from rrs_connector.db_models import (
     DatalogEntryRecord,
     DatalogStatus,
-    ReportStorageRecord,
+    ReportArtifactRecord,
     SenderRecord,
 )
 
@@ -208,11 +208,11 @@ class StateStore:
         with self._session_factory() as session:
             return session.get(DatalogEntryRecord, datalog_entry_id)
 
-    def get_report_storage_record(
+    def get_report_artifact_record(
         self,
         datalog_entry_id: int,
-    ) -> ReportStorageRecord | None:
-        """Return report storage for a datalog entry.
+    ) -> ReportArtifactRecord | None:
+        """Return report artifacts for a datalog entry.
 
         Raises ValueError if the datalog entry does not exist.
         """
@@ -223,12 +223,12 @@ class StateStore:
                 raise ValueError(f"Datalog entry not found: {datalog_entry_id}")
 
             return session.scalar(
-                select(ReportStorageRecord).where(
-                    ReportStorageRecord.datalog_entry_id == datalog_entry_id
+                select(ReportArtifactRecord).where(
+                    ReportArtifactRecord.datalog_entry_id == datalog_entry_id
                 )
             )
 
-    def upsert_report_storage(
+    def upsert_report_artifact(
         self,
         datalog_entry_id: int,
         archive_path: Path | None = None,
@@ -247,25 +247,25 @@ class StateStore:
             if datalog_entry is None:
                 raise ValueError(f"Datalog entry not found: {datalog_entry_id}")
 
-            storage = session.scalar(
-                select(ReportStorageRecord).where(
-                    ReportStorageRecord.datalog_entry_id == datalog_entry_id
+            artifact = session.scalar(
+                select(ReportArtifactRecord).where(
+                    ReportArtifactRecord.datalog_entry_id == datalog_entry_id
                 )
             )
 
-            if storage is None:
-                storage = ReportStorageRecord(datalog_entry_id=datalog_entry_id)
-                session.add(storage)
+            if artifact is None:
+                artifact = ReportArtifactRecord(datalog_entry_id=datalog_entry_id)
+                session.add(artifact)
 
             if archive_path is not None:
-                storage.archive_path = str(archive_path)
+                artifact.archive_path = str(archive_path)
             if raw_dir is not None:
-                storage.raw_dir = str(raw_dir)
+                artifact.raw_dir = str(raw_dir)
             if decrypted_dir is not None:
-                storage.decrypted_dir = str(decrypted_dir)
+                artifact.decrypted_dir = str(decrypted_dir)
             if meta_path is not None:
-                storage.meta_path = str(meta_path)
+                artifact.meta_path = str(meta_path)
             if processed_at is not None:
-                storage.processed_at = processed_at
+                artifact.processed_at = processed_at
 
             session.commit()
