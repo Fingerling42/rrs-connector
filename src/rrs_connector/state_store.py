@@ -1,11 +1,17 @@
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rrs_connector.config import SenderConfig
-from rrs_connector.db_models import DatalogEntryRecord, DatalogStatus, SenderRecord
+from rrs_connector.db_models import (
+    DatalogEntryRecord,
+    DatalogStatus,
+    ReportStorageRecord,
+    SenderRecord,
+)
 
 
 class StateStore:
@@ -174,17 +180,17 @@ class StateStore:
 
     def mark_datalog_entry_status(
         self,
-        entry_id: int,
+        datalog_entry_id: int,
         status: DatalogStatus,
         error_message: str | None = None,
     ) -> None:
         """Update processing status and optional error for one datalog entry."""
 
         with self._session_factory() as session:
-            entry_record = session.get(DatalogEntryRecord, entry_id)
+            entry_record = session.get(DatalogEntryRecord, datalog_entry_id)
 
             if entry_record is None:
-                raise ValueError(f"Datalog entry not found: {entry_id}")
+                raise ValueError(f"Datalog entry not found: {datalog_entry_id}")
 
             entry_record.status = status
             entry_record.error_message = error_message
@@ -195,9 +201,71 @@ class StateStore:
             session.commit()
 
     def get_datalog_entry_record_by_id(
-        self, entry_id: int
+        self, datalog_entry_id: int
     ) -> DatalogEntryRecord | None:
         """Return one datalog entry by primary key, if it exists."""
 
         with self._session_factory() as session:
-            return session.get(DatalogEntryRecord, entry_id)
+            return session.get(DatalogEntryRecord, datalog_entry_id)
+
+    def get_report_storage_record(
+        self,
+        datalog_entry_id: int,
+    ) -> ReportStorageRecord | None:
+        """Return report storage for a datalog entry.
+
+        Raises ValueError if the datalog entry does not exist.
+        """
+
+        with self._session_factory() as session:
+            datalog_entry = session.get(DatalogEntryRecord, datalog_entry_id)
+            if datalog_entry is None:
+                raise ValueError(f"Datalog entry not found: {datalog_entry_id}")
+
+            return session.scalar(
+                select(ReportStorageRecord).where(
+                    ReportStorageRecord.datalog_entry_id == datalog_entry_id
+                )
+            )
+
+    def upsert_report_storage(
+        self,
+        datalog_entry_id: int,
+        archive_path: Path | None = None,
+        raw_dir: Path | None = None,
+        decrypted_dir: Path | None = None,
+        meta_path: Path | None = None,
+        processed_at: datetime | None = None,
+    ) -> None:
+        """
+        Create or update filesystem artifact paths for one datalog entry.
+
+        Only non-None path arguments overwrite stored values.
+        """
+        with self._session_factory() as session:
+            datalog_entry = session.get(DatalogEntryRecord, datalog_entry_id)
+            if datalog_entry is None:
+                raise ValueError(f"Datalog entry not found: {datalog_entry_id}")
+
+            storage = session.scalar(
+                select(ReportStorageRecord).where(
+                    ReportStorageRecord.datalog_entry_id == datalog_entry_id
+                )
+            )
+
+            if storage is None:
+                storage = ReportStorageRecord(datalog_entry_id=datalog_entry_id)
+                session.add(storage)
+
+            if archive_path is not None:
+                storage.archive_path = str(archive_path)
+            if raw_dir is not None:
+                storage.raw_dir = str(raw_dir)
+            if decrypted_dir is not None:
+                storage.decrypted_dir = str(decrypted_dir)
+            if meta_path is not None:
+                storage.meta_path = str(meta_path)
+            if processed_at is not None:
+                storage.processed_at = processed_at
+
+            session.commit()
